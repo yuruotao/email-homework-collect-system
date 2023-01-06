@@ -2,7 +2,6 @@
 import email
 import imaplib
 import json
-import os
 from pathlib import Path
 import smtplib
 from base64 import b64decode
@@ -31,15 +30,10 @@ reply_check = int(input("to send reply, enter 1:"))
 
 # Get student list
 students = pd.read_excel(name_list_folder + 'student_info.xlsx')
-students['UPLOAD'] = students.apply(lambda _: '', axis=1)
+students['UPLOAD_STATUS'] = students.apply(lambda _: '', axis=1)
 students['EMAIL_ADDRESS'] = students.apply(lambda _: '', axis=1)
 students['TIME'] = students.apply(lambda _: '', axis=1)
 
-students = map(lambda x: x.rstrip("\n").split("\t"), students)  # 按照"学号 名字"处理
-students = map(lambda x: [x[0], [x[1], False]], students)  # 添加是否提交的判断
-
-# convert the list into a dictionary
-# students = dict(students)
 
 # basic web setup using the information in file config.json
 # PASSWORD: the password to your email
@@ -98,8 +92,8 @@ emails = received_data[0].split()[::-1]
 # collecting dependencies based on the structure of the email
 for i in emails:
     print("Fetching mail %d" % int(i))
+    # Internet RFC 822 specification defines an electronic message format consisting of header fields and an optional message body
     typ, received_data = mail_obj.fetch(i, '(RFC822)')
-    print("Analysing mail %d" % int(i))
 
     # UTF-8 decoding may cause problem since not containing Chinese characters
     email_message = email.message_from_string(received_data[0][1].decode('utf-8'))
@@ -116,13 +110,22 @@ for i in emails:
         continue
     pass
 
+    # document the subtitle, time, and email address with student ID
     STUDENT_ID = email_headers[0]
+    student_index = students[students['STUDENT_ID'] == STUDENT_ID].index
     print("[SUBJECT] ", email_subtitle)
     mailfrom = email.utils.parseaddr(email_message.get('from'))[1]
+    students._set_value(student_index, 'EMAIL_ADDRESS', mailfrom)
     print("[   FROM] ", mailfrom)
 
-    #
-    foo = 0  # 多文件防重名
+    # time stamp
+    raw = email.message_from_bytes(received_data[0][1])
+    datestring = raw['date']
+    # Convert to datetime object
+    datetime_obj = utils.parsedate_to_datetime(datestring)
+    print("[   TIME] ", repr(datetime_obj))
+    students._set_value(student_index, 'TIME', repr(datetime_obj))
+
 
     # saving files to local and document the upload
     if email_message.get_content_maintype() == 'multipart':
@@ -142,7 +145,8 @@ for i in emails:
         if name:
             print("[ ATTACH] ", name)
             attach_data = part.get_payload(decode=True)
-            filename = STUDENT_ID + students[STUDENT_ID][0]
+            # the filename here indicates the name saved in the folder 'result'
+            filename = STUDENT_ID + students.at[students.index[student_index], 'NAME']
 
             # saving attachments to the path
             att_path = os.path.join(download_folder, filename)
@@ -150,23 +154,10 @@ for i in emails:
                 fp = open(att_path, 'wb')
                 fp.write(attach_data)
                 fp.close()
-                foo += 1
         else:
             pass
-    students[STUDENT_ID] = 'yes'
-    students[STUDENT_ID][1] = True
-
-    raw = email.message_from_bytes(msg_data[0][1])
-
-    datestring = raw['date']
-    print(datestring)
-    # Convert to datetime object
-    datetime_obj = utils.parsedate_to_datetime(datestring)
-    print(repr(datetime_obj))
-
-    # generate the status of upload
-    for i, j in students.items():
-        print(i, "|", j[0], "\t|", "submitted" if j[1] else "NOT submitted")
+    # set the upload status of a student
+    students._set_value(student_index, 'UPLOAD_STATUS', 'yes')
 
 
     # send the confirmation of submission if the parameter reply_check is 1

@@ -1,2 +1,5 @@
 # email-homework-collect-system
- collect homework via email
+
+This Github project is built to collect the dependencies in emails.
+
+## haha

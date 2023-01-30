@@ -20,23 +20,14 @@ result_folder = folder_path + '\\result'
 if not os.path.exists(result_folder):
     os.makedirs(result_folder)
 
-
 # workid: the specific homework ID
 # reply_check: whether to send reply
 download_folder = result_folder
 workid = input("Today's Work's ID:")
-reply_check = int(input("to send reply, enter 1:"))
-
-
-# Get student list
-students = pd.read_excel(name_list_folder + 'student_info.xlsx')
-students['UPLOAD_STATUS'] = students.apply(lambda _: '', axis=1)
-students['EMAIL_ADDRESS'] = students.apply(lambda _: '', axis=1)
-students['TIME'] = students.apply(lambda _: '', axis=1)
-
+reply_check = input("to send reply, enter 1:")
 
 # basic web setup using the information in file config.json
-# PASSWORD: the password to your email
+# PASSWORD: the password to your email(authenticate password)
 # MAIL: mail address
 # IMAPSERVER: incoming mail server, in accordance with your email host name
 # SMTPSERVER: simple mail transfer protocol server, in accordance with your email host name
@@ -72,12 +63,18 @@ try:
     smtp_obj.connect(SMTPSERVER, 25)
     smtp_obj.login(MAIL, PASSWORD)
 
-    args = ("name", "gongchuang201", "contact", "gongchuang201@163.com", "version", "1.0.0", "vendor", "myclient")
+    args = ("name", "gongchuang201", "contact", MAIL, "version", "1.0.0", "vendor", "myclient")
     typ, dat = mail_obj._simple_command('ID', '("' + '" "'.join(args) + '")')
 except Exception as e:
     print('Error: %s' % str(e.args[0], "utf-8"))
     exit()
 print("CONNECTED!")
+
+# Get student list
+students = pd.read_excel(name_list_folder + 'student_info.xlsx')
+students['UPLOAD_STATUS'] = students.apply(lambda _: '', axis=1)
+students['EMAIL_ADDRESS'] = students.apply(lambda _: '', axis=1)
+students['TIME'] = students.apply(lambda _: '', axis=1)
 
 # fetch all the emails
 print("Fetching mail list")
@@ -87,7 +84,6 @@ typ, received_data = mail_obj.search(None, 'ALL')
 # the form of email title should be STUDENT_ID/HOMEWORK_ID
 # the received emails are sorted in a reversed order, named as emails
 emails = received_data[0].split()[::-1]
-
 
 # collecting dependencies based on the structure of the email
 for i in emails:
@@ -126,7 +122,6 @@ for i in emails:
     print("[   TIME] ", repr(datetime_obj))
     students._set_value(student_index, 'TIME', repr(datetime_obj))
 
-
     # saving files to local and document the upload
     if email_message.get_content_maintype() == 'multipart':
         # loop on the parts of the mail
@@ -158,10 +153,10 @@ for i in emails:
             pass
     # set the upload status of a student
     students._set_value(student_index, 'UPLOAD_STATUS', 'yes')
-
+    students.to_excel("/result/",sheet_name=workid+'_result')
 
     # send the confirmation of submission if the parameter reply_check is 1
-    if reply_check == 1:
+    if reply_check == '1':
         mail_msg = "<p>" + \
                    students[STUDENT_ID][0] + \
                    "<br>your homework " + workid + \
@@ -175,7 +170,6 @@ for i in emails:
             print("Reply Sent to ", )
         except smtplib.SMTPException:
             print("Error: Reply not sent")
-
 
 # log out the email account
 mail_obj.logout()
